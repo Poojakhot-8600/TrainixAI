@@ -50,7 +50,7 @@ const LoginPage = () => {
             <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center shadow-primary-glow">
               <Brain className="w-7 h-7 text-primary-foreground" />
             </div>
-            <h1 className="text-3xl font-bold font-display text-primary-foreground">SkillForge AI</h1>
+            <h1 className="text-3xl font-bold font-display text-primary-foreground">Trainix AI</h1>
           </div>
           <h2 className="text-4xl font-bold font-display text-primary-foreground mb-4 leading-tight">
             Your AI-Powered<br />Training Journey<br />Starts Here
@@ -87,7 +87,7 @@ const LoginPage = () => {
               <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
                 <Brain className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold font-display text-foreground">SkillForge AI</span>
+              <span className="text-xl font-bold font-display text-foreground">Trainix AI</span>
             </div>
 
             <h3 className="text-2xl font-bold font-display text-foreground mb-1">Welcome back</h3>
