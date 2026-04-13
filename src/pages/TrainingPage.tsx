@@ -114,7 +114,7 @@ const TrainingPage = () => {
     const completed = !!completedMap[dayKey];
 
     return (
-      <div className="p-4 md:p-8 max-w-4xl mx-auto">
+      <div className="p-3 sm:p-4 md:p-8 max-w-4xl mx-auto pb-20">
       <button onClick={() => { setSelectedDay(null); resetQuiz(); }} className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground hover:text-foreground mb-4 sm:mb-6 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back to Week {weekNum}
         </button>
