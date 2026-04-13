@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 
 export type UserRole = "trainee" | "admin";
 
@@ -43,7 +43,18 @@ const MOCK_USERS: Record<string, User & { password: string }> = {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    const stored = sessionStorage.getItem("trainix_user");
+    return stored ? JSON.parse(stored) : null;
+  });
+
+  useEffect(() => {
+    if (user) {
+      sessionStorage.setItem("trainix_user", JSON.stringify(user));
+    } else {
+      sessionStorage.removeItem("trainix_user");
+    }
+  }, [user]);
 
   const login = useCallback(async (email: string, password: string) => {
     const found = MOCK_USERS[email];
