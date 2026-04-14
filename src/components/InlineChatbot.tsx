@@ -63,11 +63,11 @@ const InlineChatbot = ({ dayTitle }: InlineChatbotProps) => {
   };
 
   return (
-    <div className="bg-card rounded-xl border border-border overflow-hidden">
-      {/* Header - always visible */}
+    <div className="bg-card h-full flex flex-col lg:border-0 rounded-xl lg:rounded-none border border-border overflow-hidden">
+      {/* Header - toggle on mobile, static on desktop */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-3 p-4 hover:bg-muted/30 transition-colors"
+        className="lg:cursor-default w-full flex items-center gap-3 p-4 hover:bg-muted/30 lg:hover:bg-transparent transition-colors border-b border-border"
       >
         <div className="w-9 h-9 rounded-lg gradient-primary flex items-center justify-center">
           <Sparkles className="w-4 h-4 text-primary-foreground" />
@@ -76,92 +76,84 @@ const InlineChatbot = ({ dayTitle }: InlineChatbotProps) => {
           <h3 className="text-sm font-bold font-display text-foreground">AI Training Assistant</h3>
           <p className="text-xs text-muted-foreground truncate">Get help with today's topic</p>
         </div>
-        {expanded ? (
-          <ChevronDown className="w-4 h-4 text-muted-foreground" />
-        ) : (
-          <ChevronUp className="w-4 h-4 text-muted-foreground" />
-        )}
+        <span className="lg:hidden">
+          {expanded ? (
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <ChevronUp className="w-4 h-4 text-muted-foreground" />
+          )}
+        </span>
       </button>
 
-      {/* Expanded chat area */}
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="border-t border-border"
-          >
-            {/* Messages */}
-            <div ref={scrollRef} className="h-[300px] sm:h-[350px] overflow-y-auto p-4 space-y-3">
-              {messages.map((msg) => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
-                >
-                  <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
-                      msg.role === "assistant" ? "gradient-primary" : "gradient-secondary"
-                    }`}
-                  >
-                    {msg.role === "assistant" ? (
-                      <Bot className="w-3.5 h-3.5 text-primary-foreground" />
-                    ) : (
-                      <User className="w-3.5 h-3.5 text-secondary-foreground" />
-                    )}
-                  </div>
-                  <div
-                    className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
-                      msg.role === "user"
-                        ? "bg-primary text-primary-foreground rounded-br-sm"
-                        : "bg-muted text-foreground rounded-bl-sm"
-                    }`}
-                  >
-                    {msg.text}
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-
-            {/* Quick Prompts */}
-            <div className="px-4 pb-2 flex gap-1.5 flex-wrap">
-              {QUICK_PROMPTS.map((prompt) => (
-                <button
-                  key={prompt}
-                  onClick={() => setInput(prompt)}
-                  className="text-xs px-2.5 py-1 rounded-full border border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
-                >
-                  {prompt}
-                </button>
-              ))}
-            </div>
-
-            {/* Input */}
-            <div className="p-3 border-t border-border">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  sendMessage();
-                }}
-                className="flex gap-2"
+      {/* Chat area - always visible on desktop, toggle on mobile */}
+      <div className={`flex-1 flex flex-col ${expanded || 'hidden'} lg:flex`}>
+        {/* Messages */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 h-[300px] lg:h-auto">
+          {messages.map((msg) => (
+            <motion.div
+              key={msg.id}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+            >
+              <div
+                className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
+                  msg.role === "assistant" ? "gradient-primary" : "gradient-secondary"
+                }`}
               >
-                <Input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask about this topic..."
-                  className="h-10 flex-1 text-sm"
-                />
-                <Button type="submit" size="icon" className="h-10 w-10 gradient-primary text-primary-foreground shrink-0">
-                  <Send className="w-4 h-4" />
-                </Button>
-              </form>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                {msg.role === "assistant" ? (
+                  <Bot className="w-3.5 h-3.5 text-primary-foreground" />
+                ) : (
+                  <User className="w-3.5 h-3.5 text-secondary-foreground" />
+                )}
+              </div>
+              <div
+                className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+                  msg.role === "user"
+                    ? "bg-primary text-primary-foreground rounded-br-sm"
+                    : "bg-muted text-foreground rounded-bl-sm"
+                }`}
+              >
+                {msg.text}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Quick Prompts */}
+        <div className="px-4 pb-2 flex gap-1.5 flex-wrap">
+          {QUICK_PROMPTS.map((prompt) => (
+            <button
+              key={prompt}
+              onClick={() => setInput(prompt)}
+              className="text-xs px-2.5 py-1 rounded-full border border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
+
+        {/* Input */}
+        <div className="p-3 border-t border-border">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              sendMessage();
+            }}
+            className="flex gap-2"
+          >
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask about this topic..."
+              className="h-10 flex-1 text-sm"
+            />
+            <Button type="submit" size="icon" className="h-10 w-10 gradient-primary text-primary-foreground shrink-0">
+              <Send className="w-4 h-4" />
+            </Button>
+          </form>
+        </div>
+      </div>
     </div>
   );
 };
