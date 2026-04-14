@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { trainingTopics, type WeekModule, type DayContent, type QuizQuestion } from "@/data/trainingData";
 import {
   CheckCircle2, Lock, Clock, ChevronDown, ChevronRight,
-  BookOpen, Code2, Rocket, Brain, ArrowLeft, Trophy, AlertCircle
+  BookOpen, Code2, Rocket, Brain, ArrowLeft, Trophy, AlertCircle, X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -13,6 +13,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import InlineChatbot from "@/components/InlineChatbot";
 
@@ -114,131 +120,153 @@ const TrainingPage = () => {
     const completed = !!completedMap[dayKey];
 
     return (
-      <div className="p-3 sm:p-4 md:p-8 max-w-4xl mx-auto pb-20">
-      <button onClick={() => { setSelectedDay(null); resetQuiz(); }} className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground hover:text-foreground mb-4 sm:mb-6 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back to Week {weekNum}
-        </button>
+      <div className="flex h-full">
+        {/* Main content */}
+        <div className="flex-1 p-3 sm:p-4 md:p-8 max-w-4xl mx-auto pb-20 overflow-y-auto">
+          <button onClick={() => { setSelectedDay(null); resetQuiz(); }} className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground hover:text-foreground mb-4 sm:mb-6 transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Back to Week {weekNum}
+          </button>
 
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="flex items-center gap-3 mb-2">
-            {completed && <CheckCircle2 className="w-6 h-6 text-emerald-500" />}
-            <h1 className="text-lg sm:text-2xl font-bold font-display text-foreground">
-              Day {dayNum}: {selectedDay.title}
-            </h1>
-          </div>
-          {completed && <span className="inline-block text-xs font-medium bg-emerald-500/10 text-emerald-600 px-3 py-1 rounded-full mb-6">Completed</span>}
-
-          {/* Reading Content */}
-          <div className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6">
-            <div className="flex items-center gap-2 mb-4">
-              <BookOpen className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-semibold text-foreground">Concept Reading</h2>
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <div className="flex items-center gap-3 mb-2">
+              {completed && <CheckCircle2 className="w-6 h-6 text-emerald-500" />}
+              <h1 className="text-lg sm:text-2xl font-bold font-display text-foreground">
+                Day {dayNum}: {selectedDay.title}
+              </h1>
             </div>
-            <div className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line">
-              {selectedDay.readingContent.split("\n").map((line, i) => {
-                if (line.startsWith("**") && line.endsWith("**")) return <p key={i} className="font-semibold mt-3 mb-1 text-foreground">{line.replace(/\*\*/g, "")}</p>;
-                if (line.startsWith("- ")) return <li key={i} className="ml-4 list-disc text-foreground/70">{line.slice(2)}</li>;
-                return <p key={i} className="mb-2">{line}</p>;
-              })}
-            </div>
-          </div>
+            {completed && <span className="inline-block text-xs font-medium bg-emerald-500/10 text-emerald-600 px-3 py-1 rounded-full mb-6">Completed</span>}
 
-          {/* Code Snippets */}
-          {selectedDay.codeSnippets?.map((snippet, i) => (
-            <div key={i} className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6">
-              <div className="flex items-center gap-2 mb-3">
-                <Code2 className="w-5 h-5 text-secondary" />
-                <h3 className="text-md font-semibold text-foreground">{snippet.description}</h3>
-                <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground ml-auto">{snippet.language}</span>
-              </div>
-              <pre className="bg-muted/50 rounded-lg p-3 sm:p-4 overflow-x-auto text-xs sm:text-sm font-mono text-foreground/90 border border-border">
-                <code>{snippet.code}</code>
-              </pre>
-            </div>
-          ))}
-
-          {/* Hands-on */}
-          {selectedDay.handsOn && (
+            {/* Reading Content */}
             <div className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6">
-              <div className="flex items-center gap-2 mb-3">
-                <Rocket className="w-5 h-5 text-accent" />
-                <h3 className="text-md font-semibold text-foreground">Hands-On Exercise</h3>
-              </div>
-              <p className="text-sm text-foreground/70 mb-3">{selectedDay.handsOn.description}</p>
-              {selectedDay.handsOn.link && (
-                <Button variant="outline" size="sm" asChild>
-                  <a href={selectedDay.handsOn.link} target="_blank" rel="noopener noreferrer">Open Editor</a>
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* Mini Project */}
-          {selectedDay.miniProject && (
-            <div className="bg-primary/5 rounded-xl border border-primary/20 p-4 sm:p-6 mb-4 sm:mb-6">
-              <div className="flex items-center gap-2 mb-3">
-                <Trophy className="w-5 h-5 text-primary" />
-                <h3 className="text-md font-semibold text-foreground">Mini Project: {selectedDay.miniProject.title}</h3>
-              </div>
-              <p className="text-sm text-foreground/70 mb-4">{selectedDay.miniProject.description}</p>
-              <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10">
-                Submit Project
-              </Button>
-            </div>
-          )}
-
-          {/* Quiz Section */}
-          {!completed && (
-            <div className="bg-card rounded-xl border border-border p-4 sm:p-6">
               <div className="flex items-center gap-2 mb-4">
-                <Brain className="w-5 h-5 text-primary" />
-                <h3 className="text-lg font-semibold text-foreground">Day {dayNum} Quiz</h3>
-                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{selectedDay.quiz.length} questions</span>
+                <BookOpen className="w-5 h-5 text-primary" />
+                <h2 className="text-lg font-semibold text-foreground">Concept Reading</h2>
               </div>
+              <div className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line">
+                {selectedDay.readingContent.split("\n").map((line, i) => {
+                  if (line.startsWith("**") && line.endsWith("**")) return <p key={i} className="font-semibold mt-3 mb-1 text-foreground">{line.replace(/\*\*/g, "")}</p>;
+                  if (line.startsWith("- ")) return <li key={i} className="ml-4 list-disc text-foreground/70">{line.slice(2)}</li>;
+                  return <p key={i} className="mb-2">{line}</p>;
+                })}
+              </div>
+            </div>
 
-              {!showQuiz ? (
+            {/* Code Snippets */}
+            {selectedDay.codeSnippets?.map((snippet, i) => (
+              <div key={i} className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <Code2 className="w-5 h-5 text-secondary" />
+                  <h3 className="text-md font-semibold text-foreground">{snippet.description}</h3>
+                  <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground ml-auto">{snippet.language}</span>
+                </div>
+                <pre className="bg-muted/50 rounded-lg p-3 sm:p-4 overflow-x-auto text-xs sm:text-sm font-mono text-foreground/90 border border-border">
+                  <code>{snippet.code}</code>
+                </pre>
+              </div>
+            ))}
+
+            {/* Hands-on */}
+            {selectedDay.handsOn && (
+              <div className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <Rocket className="w-5 h-5 text-accent" />
+                  <h3 className="text-md font-semibold text-foreground">Hands-On Exercise</h3>
+                </div>
+                <p className="text-sm text-foreground/70 mb-3">{selectedDay.handsOn.description}</p>
+                {selectedDay.handsOn.link && (
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={selectedDay.handsOn.link} target="_blank" rel="noopener noreferrer">Open Editor</a>
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Mini Project */}
+            {selectedDay.miniProject && (
+              <div className="bg-primary/5 rounded-xl border border-primary/20 p-4 sm:p-6 mb-4 sm:mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <Trophy className="w-5 h-5 text-primary" />
+                  <h3 className="text-md font-semibold text-foreground">Mini Project: {selectedDay.miniProject.title}</h3>
+                </div>
+                <p className="text-sm text-foreground/70 mb-4">{selectedDay.miniProject.description}</p>
+                <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10">
+                  Submit Project
+                </Button>
+              </div>
+            )}
+
+            {/* Quiz Button - opens lightbox */}
+            {!completed && (
+              <div className="bg-card rounded-xl border border-border p-4 sm:p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Brain className="w-5 h-5 text-primary" />
+                  <h3 className="text-lg font-semibold text-foreground">Day {dayNum} Quiz</h3>
+                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{selectedDay.quiz.length} questions</span>
+                </div>
                 <div className="text-center py-4">
                   <p className="text-sm text-muted-foreground mb-4">Complete the quiz to unlock the next day's content.</p>
-                  <Button onClick={() => setShowQuiz(true)} className="gradient-primary text-primary-foreground shadow-primary-glow">
+                  <Button onClick={() => { resetQuiz(); setShowQuiz(true); }} className="gradient-primary text-primary-foreground shadow-primary-glow">
                     Start Quiz
                   </Button>
                 </div>
-              ) : (
-                <div className="space-y-6">
-                  {selectedDay.quiz.map((q, qi) => (
-                    <QuizQuestionCard
-                      key={q.id}
-                      question={q}
-                      index={qi}
-                      selected={quizAnswers[q.id]}
-                      onSelect={(val) => setQuizAnswers(prev => ({ ...prev, [q.id]: val }))}
-                      submitted={quizSubmitted}
-                    />
-                  ))}
-                  <div className="flex gap-3">
-                    {!quizSubmitted ? (
-                      <Button
-                        onClick={() => handleQuizSubmit(topicId, weekNum, dayNum)}
-                        disabled={Object.keys(quizAnswers).length < selectedDay.quiz.length}
-                        className="gradient-primary text-primary-foreground shadow-primary-glow"
-                      >
-                        Submit Quiz
-                      </Button>
-                    ) : !completed ? (
-                      <Button onClick={resetQuiz} variant="outline">
-                        Retry Quiz
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              )}
+              </div>
+            )}
+          </motion.div>
+        </div>
+
+        {/* Right-side AI Chatbot */}
+        <div className="hidden lg:block w-[380px] border-l border-border shrink-0">
+          <InlineChatbot dayTitle={selectedDay.title} />
+        </div>
+
+        {/* Mobile: floating chatbot at bottom-right */}
+        <div className="lg:hidden fixed bottom-4 right-4 z-40 w-[calc(100%-2rem)] max-w-[360px]">
+          <InlineChatbot dayTitle={selectedDay.title} />
+        </div>
+
+        {/* Quiz Lightbox Dialog */}
+        <Dialog open={showQuiz} onOpenChange={(open) => { if (!open) resetQuiz(); }}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Brain className="w-5 h-5 text-primary" />
+                Day {dayNum} Quiz
+                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full ml-2">{selectedDay.quiz.length} questions</span>
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-6 mt-4">
+              {selectedDay.quiz.map((q, qi) => (
+                <QuizQuestionCard
+                  key={q.id}
+                  question={q}
+                  index={qi}
+                  selected={quizAnswers[q.id]}
+                  onSelect={(val) => setQuizAnswers(prev => ({ ...prev, [q.id]: val }))}
+                  submitted={quizSubmitted}
+                />
+              ))}
+              <div className="flex gap-3 pt-2">
+                {!quizSubmitted ? (
+                  <Button
+                    onClick={() => handleQuizSubmit(topicId, weekNum, dayNum)}
+                    disabled={Object.keys(quizAnswers).length < selectedDay.quiz.length}
+                    className="gradient-primary text-primary-foreground shadow-primary-glow"
+                  >
+                    Submit Quiz
+                  </Button>
+                ) : !completed ? (
+                  <Button onClick={() => { setQuizAnswers({}); setQuizSubmitted(false); }} variant="outline">
+                    Retry Quiz
+                  </Button>
+                ) : (
+                  <Button onClick={resetQuiz} className="gradient-primary text-primary-foreground">
+                    Continue
+                  </Button>
+                )}
+              </div>
             </div>
-          )}
-          {/* Inline AI Chatbot */}
-          <div className="mt-6">
-            <InlineChatbot dayTitle={selectedDay.title} />
-          </div>
-        </motion.div>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
