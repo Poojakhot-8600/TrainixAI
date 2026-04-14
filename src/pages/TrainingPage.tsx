@@ -14,7 +14,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import TrainingAssistant from "@/components/TrainingAssistant";
+import InlineChatbot from "@/components/InlineChatbot";
 
 // --- Progress Store (localStorage-backed for demo) ---
 function loadProgress(): Record<string, boolean> {
@@ -234,8 +234,11 @@ const TrainingPage = () => {
               )}
             </div>
           )}
+          {/* Inline AI Chatbot */}
+          <div className="mt-6">
+            <InlineChatbot dayTitle={selectedDay.title} />
+          </div>
         </motion.div>
-        <TrainingAssistant />
       </div>
     );
   }
@@ -316,7 +319,6 @@ const TrainingPage = () => {
             })}
           </div>
         </motion.div>
-        <TrainingAssistant />
       </div>
     );
   }
@@ -409,7 +411,7 @@ const TrainingPage = () => {
           );
         })}
       </div>
-      <TrainingAssistant />
+      
     </div>
   );
 };

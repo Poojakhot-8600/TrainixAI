@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
-  Brain, LayoutDashboard, BookOpen, MessageSquare, BarChart3,
+  Brain, LayoutDashboard, BookOpen, BarChart3,
   Settings, LogOut, Shield, Menu, X
 } from "lucide-react";
 
@@ -17,7 +17,6 @@ const AppSidebar = () => {
   const navItems = [
     { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
     { label: "Training", icon: BookOpen, path: "/training" },
-    { label: "AI Assistant", icon: MessageSquare, path: "/assistant" },
     ...(user?.role === "admin"
       ? [{ label: "Admin Panel", icon: Shield, path: "/admin" }]
       : []),
