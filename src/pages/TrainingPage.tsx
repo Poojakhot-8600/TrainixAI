@@ -352,43 +352,63 @@ const TrainingPage = () => {
             )}
 
             {/* Results */}
-            {quizSubmitted && (
+            {quizSubmitted && (() => {
+              const correctCount = shuffledQuiz.filter(q => quizAnswers[q.id] === q.correctAnswer).length;
+              const passed = correctCount >= Math.ceil(shuffledQuiz.length * 0.6);
+              return (
               <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="mt-2">
-                {completed ? (
-                  <div className="text-center py-6">
-                    <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
-                      <Trophy className="w-8 h-8 text-emerald-500" />
-                    </div>
-                    <h3 className="text-lg font-bold text-foreground mb-2">Quiz Passed! 🎉</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      You scored {shuffledQuiz.filter(q => quizAnswers[q.id] === q.correctAnswer).length}/{shuffledQuiz.length}
-                    </p>
-                    <Button onClick={resetQuiz} className="gradient-primary text-primary-foreground">
-                      Continue
+                {/* Score header */}
+                <div className="text-center pb-4">
+                  <div className={`w-14 h-14 rounded-full ${passed ? "bg-emerald-500/10" : "bg-destructive/10"} flex items-center justify-center mx-auto mb-3`}>
+                    {passed ? <Trophy className="w-7 h-7 text-emerald-500" /> : <AlertCircle className="w-7 h-7 text-destructive" />}
+                  </div>
+                  <h3 className="text-lg font-bold text-foreground mb-1">{passed ? "Quiz Passed! 🎉" : "Not Quite!"}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    You scored {correctCount}/{shuffledQuiz.length}
+                    {!passed && ` — Need ${Math.ceil(shuffledQuiz.length * 0.6)} to pass`}
+                  </p>
+                </div>
+
+                {/* Question-by-question summary */}
+                <div className="max-h-[40vh] overflow-y-auto space-y-3 mb-4 pr-1">
+                  {shuffledQuiz.map((q, qi) => {
+                    const userAnswer = quizAnswers[q.id];
+                    const isCorrect = userAnswer === q.correctAnswer;
+                    return (
+                      <div key={q.id} className={`rounded-lg border p-3 text-sm ${isCorrect ? "border-emerald-500/30 bg-emerald-500/5" : "border-destructive/30 bg-destructive/5"}`}>
+                        <div className="flex items-start gap-2 mb-2">
+                          {isCorrect
+                            ? <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                            : <X className="w-4 h-4 text-destructive mt-0.5 shrink-0" />}
+                          <span className="font-medium text-foreground">Q{qi + 1}: {q.question}</span>
+                        </div>
+                        <div className="ml-6 space-y-1">
+                          <p className={`text-xs ${isCorrect ? "text-emerald-600" : "text-destructive"}`}>
+                            Your answer: {q.options[userAnswer] ?? "—"}
+                          </p>
+                          {!isCorrect && (
+                            <p className="text-xs text-emerald-600">
+                              Correct answer: {q.options[q.correctAnswer]}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 justify-center">
+                  <Button variant="outline" onClick={resetQuiz}>{passed ? "Continue" : "Close"}</Button>
+                  {!passed && (
+                    <Button onClick={retryQuiz} className="gradient-primary text-primary-foreground shadow-primary-glow">
+                      Retry with New Questions
                     </Button>
-                  </div>
-                ) : (
-                  <div className="text-center py-6">
-                    <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
-                      <AlertCircle className="w-8 h-8 text-destructive" />
-                    </div>
-                    <h3 className="text-lg font-bold text-foreground mb-2">Not Quite!</h3>
-                    <p className="text-sm text-muted-foreground mb-1">
-                      You scored {shuffledQuiz.filter(q => quizAnswers[q.id] === q.correctAnswer).length}/{shuffledQuiz.length}
-                    </p>
-                    <p className="text-xs text-muted-foreground mb-4">
-                      Need at least {Math.ceil(shuffledQuiz.length * 0.6)} correct answers to pass.
-                    </p>
-                    <div className="flex gap-3 justify-center">
-                      <Button variant="outline" onClick={resetQuiz}>Close</Button>
-                      <Button onClick={retryQuiz} className="gradient-primary text-primary-foreground shadow-primary-glow">
-                        Retry with New Questions
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </motion.div>
-            )}
+              );
+            })()}
           </DialogContent>
         </Dialog>
       </div>
