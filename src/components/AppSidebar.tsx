@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNotifications } from "@/contexts/NotificationContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
@@ -9,13 +10,14 @@ import {
 
 const AppSidebar = () => {
   const { user, logout } = useAuth();
+  const { unreadCount } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = [
-    { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
+    { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard", hasNotification: unreadCount > 0 },
     { label: "Training", icon: BookOpen, path: "/training" },
     ...(user?.role === "admin"
       ? [{ label: "Admin Panel", icon: Shield, path: "/admin" }]
@@ -57,14 +59,17 @@ const AppSidebar = () => {
             <button
               key={item.path}
               onClick={() => handleNav(item.path)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all relative
                 ${active
                   ? "bg-sidebar-accent text-sidebar-primary"
                   : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
                 }`}
             >
               <item.icon className="w-4 h-4" />
-              {item.label}
+              <span>{item.label}</span>
+              {item.hasNotification && (
+                <span className="absolute right-3 w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse" />
+              )}
             </button>
           );
         })}

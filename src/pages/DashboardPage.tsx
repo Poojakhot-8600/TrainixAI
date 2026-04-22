@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { trainingTopics } from "@/data/trainingData";
+import NotificationBell from "@/components/NotificationBell";
 import {
   BookOpen, Clock, Trophy, TrendingUp, Sparkles,
   Building2, Code2, Users, ChevronRight, CheckCircle2, Circle, Lock
@@ -35,7 +36,12 @@ const DashboardPage = () => {
   ];
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-8 max-w-6xl mx-auto relative">
+      {/* Top Header Actions */}
+      <div className="absolute top-8 right-8 z-10">
+        <NotificationBell />
+      </div>
+
       {/* Welcome */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -45,7 +51,7 @@ const DashboardPage = () => {
         <h1 className="text-3xl font-bold font-display text-foreground mb-1">
           Welcome back, {user?.name?.split(" ")[0]}! 👋
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-muted-foreground mr-12">
           {user?.role === "admin"
             ? "Monitor trainee progress and manage training content."
             : "Continue your personalized learning journey."}

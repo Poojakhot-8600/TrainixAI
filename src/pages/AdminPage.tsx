@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
@@ -24,23 +24,30 @@ const AdminPage = () => {
   const [generating, setGenerating] = useState(false);
   const [generatedOutput, setGeneratedOutput] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const validateFile = (file: File): boolean => {
+  // Load cached roadmap on mount
+  useEffect(() => {
+    const cached = sessionStorage.getItem("trainix-admin-generated-roadmap");
+    if (cached) setGeneratedOutput(cached);
+  }, []);
+
+  const validateFile = useCallback((file: File): boolean => {
     const ext = "." + file.name.split(".").pop()?.toLowerCase();
     if (!ACCEPTED_EXTENSIONS.includes(ext) && !ACCEPTED_TYPES.includes(file.type)) {
       toast.error("Only PDF (.pdf) and Word (.doc, .docx) files are allowed.");
       return false;
     }
     return true;
-  };
+  }, []);
 
   const handleFileDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     const file = e.dataTransfer.files[0];
     if (file && validateFile(file)) setUploadedFile(file);
-  }, []);
+  }, [validateFile]);
 
   if (user?.role !== "admin") return <Navigate to="/dashboard" replace />;
 
@@ -61,14 +68,95 @@ const AdminPage = () => {
     setGenerating(true);
     setGeneratedOutput(null);
 
-    // Simulated processing
-    setTimeout(() => {
-      setGeneratedOutput(
-        `# Generated Roadmap\n\n**Based on:** ${uploadedFile.name}\n**Prompt:** ${prompt}\n\n---\n\n## Module 1: Introduction\n- Overview of key concepts\n- Learning objectives and prerequisites\n- Setting up the environment\n\n## Module 2: Core Concepts\n- **Topic 2.1:** Fundamental principles\n  - Detailed explanation of base concepts\n  - Key terminology and definitions\n  - Practical examples and use cases\n\n- **Topic 2.2:** Advanced patterns\n  - Design patterns overview\n  - Implementation strategies\n  - Best practices and common pitfalls\n\n## Module 3: Hands-On Practice\n- Exercise 1: Build a basic component\n- Exercise 2: Implement data flow\n- Exercise 3: Integration testing\n\n## Module 4: Assessment & Review\n- Quiz covering all modules\n- Project submission guidelines\n- Review and feedback process\n\n---\n\n*This roadmap was generated from the uploaded document content processed with your custom instructions.*`
-      );
-      setGenerating(false);
+    try {
+      const formData = new FormData();
+      formData.append("file", uploadedFile);
+      formData.append("prompt", prompt);
+
+      const response = await fetch("https://pooja33.app.n8n.cloud/webhook-test/roadmap-generator", {
+        method: "POST",
+        body: formData,
+        // Content-Type is set automatically for FormData
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("Generated Roadmap Data:", data);
+
+      // If we get back a string, we store it. If we get back a structured object, we handle it.
+      const output = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+      setGeneratedOutput(output);
+
+      // Cache in sessionStorage
+      sessionStorage.setItem("trainix-admin-generated-roadmap", output);
+
       toast.success("Roadmap generated successfully!");
-    }, 2000);
+    } catch (err) {
+      console.error("Error generating roadmap:", err);
+      toast.error("Failed to generate roadmap.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!generatedOutput) {
+      toast.error("No roadmap content to confirm.");
+      return;
+    }
+
+    setConfirming(true);
+    console.log("[Webhook] Attempting to confirm roadmap...");
+
+    try {
+      let roadmapData;
+      try {
+        roadmapData = JSON.parse(generatedOutput);
+      } catch (e) {
+        roadmapData = generatedOutput;
+      }
+
+      console.log("[Webhook] Payload:", {
+        roadmap: roadmapData,
+        confirmedBy: user?.email,
+        timestamp: new Date().toISOString()
+      });
+
+      const response = await fetch("https://pooja29.app.n8n.cloud/webhook-test/confirmRoadmap", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          roadmap: roadmapData,
+          confirmedBy: user?.email,
+          timestamp: new Date().toISOString()
+        }),
+      });
+
+      const responseText = await response.text();
+      console.log("[Webhook] Response status:", response.status);
+      console.log("[Webhook] Response text:", responseText);
+
+      if (!response.ok) {
+        throw new Error(`Server responded with ${response.status}: ${responseText || "No error detail provided"}`);
+      }
+
+      toast.success("Roadmap confirmed and saved to database!");
+    } catch (err) {
+      console.error("[Webhook] Confirmation error:", err);
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      toast.error(`Confirmation failed: ${errorMessage}`);
+
+      if (errorMessage.includes("Failed to fetch")) {
+        toast.info("Tip: This might be a CORS error. Ensure your n8n webhook allows requests from this origin.");
+      }
+    } finally {
+      setConfirming(false);
+    }
   };
 
   const mockTrainees = [
@@ -216,26 +304,140 @@ const AdminPage = () => {
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-muted/30 rounded-xl border border-border p-5"
+                className="bg-card rounded-2xl border border-border p-5 relative overflow-hidden shadow-2xl shadow-primary/5"
               >
-                <h3 className="text-md font-semibold text-foreground mb-3">Generated Output</h3>
-                <div className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line">
-                  {generatedOutput.split("\n").map((line, i) => {
-                    if (line.startsWith("# ")) return <h2 key={i} className="text-xl font-bold mt-4 mb-2 text-foreground">{line.slice(2)}</h2>;
-                    if (line.startsWith("## ")) return <h3 key={i} className="text-lg font-semibold mt-3 mb-1 text-foreground">{line.slice(3)}</h3>;
-                    if (line.startsWith("**") && line.includes(":**")) {
-                      const [bold, rest] = line.split(":**");
-                      return <p key={i} className="font-semibold mt-2"><span>{bold.replace(/\*\*/g, "")}:</span>{rest}</p>;
-                    }
-                    if (line.startsWith("- **")) return <li key={i} className="ml-4 list-disc font-medium mt-1">{line.slice(2).replace(/\*\*/g, "")}</li>;
-                    if (line.startsWith("- ")) return <li key={i} className="ml-6 list-disc text-foreground/70">{line.slice(2)}</li>;
-                    if (line.startsWith("  - ")) return <li key={i} className="ml-10 list-circle text-foreground/60 text-xs">{line.slice(4)}</li>;
-                    if (line.startsWith("---")) return <hr key={i} className="my-3 border-border" />;
-                    if (line.startsWith("*") && line.endsWith("*")) return <p key={i} className="text-xs text-muted-foreground italic mt-2">{line.replace(/\*/g, "")}</p>;
-                    if (!line.trim()) return <br key={i} />;
-                    return <p key={i} className="mb-1">{line}</p>;
-                  })}
+                <div className="flex items-center justify-between mb-6 px-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <FileText className="w-4 h-4 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-black text-foreground tracking-tight">System Generated Roadmap</h3>
+                  </div>
+                  <Sparkles className="w-5 h-5 text-primary animate-pulse" />
                 </div>
+
+                {/* Scrollable Area */}
+                <div className="max-h-[650px] overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
+                  <div className="space-y-8 pb-24">
+                    {(() => {
+                      let roadmapObj;
+                      try {
+                        roadmapObj = JSON.parse(generatedOutput);
+                      } catch (e) {
+                        roadmapObj = null;
+                      }
+
+                      // Handle both { data: { roadmap ... } } and direct { roadmap ... } structure
+                      const rd = (roadmapObj && roadmapObj.data && roadmapObj.data.roadmap) ? roadmapObj.data : roadmapObj;
+
+                      if (rd && rd.roadmap && Array.isArray(rd.roadmap)) {
+                        return (
+                          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                            {/* Week Header */}
+                            <div className="bg-primary/5 p-6 rounded-2xl border-l-8 border-primary shadow-sm">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="w-8 h-px bg-primary/40" />
+                                <h4 className="text-xs uppercase tracking-widest font-black text-primary">Week {rd.week_number}</h4>
+                              </div>
+                              <p className="text-2xl sm:text-3xl font-black text-foreground tracking-tight">{rd.week_topic}</p>
+                            </div>
+
+                            {/* Day List */}
+                            <div className="grid gap-6">
+                            {rd.roadmap.map((dayItem: { day: string; topics: { title: string; subtopics: string[] }[] }, idx: number) => (
+                                <div key={idx} className="bg-card border border-border p-6 rounded-2xl shadow-md hover:shadow-lg transition-all duration-300 border-t-4 border-t-primary/20">
+                                  <div className="flex items-center justify-between mb-5">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-black text-lg">
+                                        {idx + 1}
+                                      </div>
+                                      <div>
+                                        <span className="text-[10px] font-black bg-primary/10 text-primary px-2 py-0.5 rounded uppercase tracking-widest">Schedule</span>
+                                        <h5 className="text-xl font-black text-foreground tracking-tight">{dayItem.day}</h5>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid sm:grid-cols-2 gap-4">
+                                    {(dayItem.topics || []).map((topic: { title: string; subtopics: string[] }, tIdx: number) => (
+                                      <div key={tIdx} className="bg-muted/30 p-4 rounded-xl border border-border/50 hover:border-primary/30 transition-colors group">
+                                        <h6 className="text-sm font-black text-foreground mb-3 flex items-center gap-2">
+                                          <div className="w-1.5 h-1.5 rounded-full bg-primary group-hover:scale-150 transition-transform" />
+                                          {topic.title}
+                                        </h6>
+                                        {topic.subtopics && (
+                                          <div className="space-y-2 ml-3.5">
+                                            {topic.subtopics.map((st: string, sIdx: number) => (
+                                              <p key={sIdx} className="text-xs text-muted-foreground flex items-start gap-2 leading-relaxed">
+                                                <span className="w-1 h-1 bg-primary/40 rounded-full mt-1.5 shrink-0" />
+                                                {st}
+                                              </p>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Fallback to text rendering
+                      return (
+                        <div className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line bg-muted/20 p-6 rounded-xl border border-border">
+                          {generatedOutput.split("\n").map((line, i) => {
+                            const trimmed = line.trim();
+                            if (trimmed.startsWith("# ")) return <h2 key={i} className="text-2xl font-black mt-6 mb-4 text-foreground border-b border-border pb-2">{trimmed.slice(2)}</h2>;
+                            if (trimmed.startsWith("## ")) return <h3 key={i} className="text-xl font-black mt-8 mb-4 text-primary leading-tight">{trimmed.slice(3)}</h3>;
+                            if (trimmed.startsWith("### ")) return <h4 key={i} className="text-lg font-bold mt-6 mb-2 text-foreground">{trimmed.slice(4)}</h4>;
+                            if (trimmed.startsWith("- ")) return (
+                              <li key={i} className="ml-4 flex items-start gap-3 mb-3 text-foreground/90 font-semibold group">
+                                <span className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0 group-hover:scale-125 transition-transform" />
+                                <span>{trimmed.slice(2).replace(/\*\*/g, "")}</span>
+                              </li>
+                            );
+                            if (trimmed.startsWith("  - ")) return (
+                              <li key={i} className="ml-12 flex items-start gap-2 mb-2 text-muted-foreground text-xs leading-relaxed">
+                                <span className="w-1 h-1 rounded-full bg-primary/40 mt-1.5 shrink-0" />
+                                <span>{trimmed.slice(4)}</span>
+                              </li>
+                            );
+                            if (trimmed === "---") return <div key={i} className="my-10 h-px bg-gradient-to-r from-transparent via-border to-transparent" />;
+                            if (!trimmed) return <div key={i} className="h-4" />;
+                            return <p key={i} className="mb-3 pl-2 border-l-2 border-transparent">{line}</p>;
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Confirm Button Overlay */}
+                <div className="absolute bottom-6 right-8 z-10">
+                  <Button
+                    onClick={handleConfirm}
+                    disabled={confirming}
+                    className="gradient-secondary text-primary-foreground shadow-2xl px-10 h-14 rounded-full font-black text-lg transition-transform hover:scale-105 active:scale-95 flex items-center gap-2"
+                  >
+                    {confirming ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Saving to DB...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-5 h-5" />
+                        Confirm Roadmap
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Visual fade effect at the bottom */}
+                <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-card via-card/80 to-transparent pointer-events-none rounded-b-2xl" />
               </motion.div>
             )}
           </AnimatePresence>
@@ -270,11 +472,10 @@ const AdminPage = () => {
                     </div>
                   </td>
                   <td className="p-4">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                      t.status === "active" ? "bg-success/10 text-success" :
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${t.status === "active" ? "bg-success/10 text-success" :
                       t.status === "behind" ? "bg-warning/10 text-warning" :
-                      "bg-destructive/10 text-destructive"
-                    }`}>
+                        "bg-destructive/10 text-destructive"
+                      }`}>
                       {t.status}
                     </span>
                   </td>
