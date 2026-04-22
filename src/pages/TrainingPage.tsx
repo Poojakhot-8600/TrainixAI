@@ -380,7 +380,7 @@ const TrainingPage = () => {
             if (topic.subtopics && Array.isArray(topic.subtopics)) {
               content += (topic.subtopics as string[]).map((st) => `- ${st}`).join("\n") ;
             }
-            return content;
+            return content ;
           })
           .join("\n\n");
       }
