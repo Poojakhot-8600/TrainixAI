@@ -382,7 +382,7 @@ const TrainingPage = () => {
             }
             return content;
           })
-          .join("\n\n");
+          .join("\n\n"); 
       }
 
       if (readingContent) {
