@@ -378,7 +378,7 @@ const TrainingPage = () => {
           .map((topic) => {
             let content = `### ${topic.title || ""}\n`;
             if (topic.subtopics && Array.isArray(topic.subtopics)) {
-              content += (topic.subtopics as string[]).map((st) => `- ${st}`).join("\n");
+              content += (topic.subtopics as string[]).map((st) => `- ${st}`).join("\n") ;
             }
             return content;
           })
