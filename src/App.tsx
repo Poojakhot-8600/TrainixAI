@@ -13,9 +13,33 @@ import AdminPage from "./pages/AdminPage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
+import { useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
+
 const queryClient = new QueryClient();
 
-const App = () => (
+const App = () => {
+  useEffect(() => {
+    const checkDB = async () => {
+      const { error } = await supabase.from('_probe_').select('count');
+      // If we get an error or data, it means we reached the server.
+      // A common reachable error is 42P01 (relation does not exist) or 401 (unauthorized).
+      // Both prove the network connection to the Supabase instance is working.
+      if (error && (error.code === '42P01' || error.status === 401 || error.status === 404)) {
+        console.log("DB Connection Proved:", error.message);
+        toast.success("Database Connected", {
+          description: "Verified connection to your Supabase instance.",
+          duration: 5000,
+        });
+      } else if (!error) {
+        toast.success("Database Fully Connected!");
+      }
+    };
+    checkDB();
+  }, []);
+
+  return (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <NotificationProvider>
@@ -37,7 +61,8 @@ const App = () => (
         </TooltipProvider>
       </NotificationProvider>
     </AuthProvider>
-  </QueryClientProvider>
-);
+    </QueryClientProvider>
+  );
+};
 
 export default App;

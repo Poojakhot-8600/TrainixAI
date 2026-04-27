@@ -44,7 +44,7 @@ const AssistantPage = () => {
 
     try {
       console.log(`[Chat Webhook] Calling AI with Input: "${currentInput}"`);
-      const response = await fetch("https://pooja33.app.n8n.cloud/webhook/68f69153-e7a0-4e90-ab01-1e2b22e26388/chat", {
+      const response = await fetch("https://pooja37.app.n8n.cloud/webhook/68f69153-e7a0-4e90-ab01-1e2b22e26388/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -65,7 +65,7 @@ const AssistantPage = () => {
 
       const data = await response.json();
       console.log("[Chat Webhook] Response Data:", data);
-      
+
       // Robust recursive parsing to handle double-stringified JSON or nested objects
       const extractText = (obj: unknown): string => {
         if (!obj) return "";
@@ -77,16 +77,16 @@ const AssistantPage = () => {
           return obj;
         }
         if (Array.isArray(obj)) return extractText(obj[0]);
-        
+
         const possibleObj = obj as Record<string, unknown>;
         return extractText(
-          possibleObj.reply || 
-          possibleObj.output || 
-          possibleObj.response || 
-          possibleObj.message || 
-          possibleObj.text || 
-          possibleObj.answer || 
-          possibleObj.content || 
+          possibleObj.reply ||
+          possibleObj.output ||
+          possibleObj.response ||
+          possibleObj.message ||
+          possibleObj.text ||
+          possibleObj.answer ||
+          possibleObj.content ||
           JSON.stringify(obj)
         );
       };
@@ -136,8 +136,8 @@ const AssistantPage = () => {
             animate={{ opacity: 1, y: 0 }}
             className={`flex gap-4 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
           >
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${msg.role === "assistant" 
-              ? "bg-[#6366F1] text-white" 
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${msg.role === "assistant"
+              ? "bg-[#6366F1] text-white"
               : "bg-slate-200 text-slate-600"
               }`}>
               {msg.role === "assistant" ? (

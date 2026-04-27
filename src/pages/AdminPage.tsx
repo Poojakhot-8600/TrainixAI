@@ -7,8 +7,9 @@ import {
   X, Sparkles, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea"; 
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { confirmRoadmapAction } from "@/lib/roadmap-actions";
 
 const ACCEPTED_TYPES = [
   "application/pdf",
@@ -25,6 +26,7 @@ const AdminPage = () => {
   const [generatedOutput, setGeneratedOutput] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [isConfirmed, setIsConfirmed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load cached roadmap on mount
@@ -67,13 +69,14 @@ const AdminPage = () => {
 
     setGenerating(true);
     setGeneratedOutput(null);
+    setIsConfirmed(false);
 
     try {
       const formData = new FormData();
       formData.append("file", uploadedFile);
       formData.append("prompt", prompt);
 
-      const response = await fetch("https://pooja33.app.n8n.cloud/webhook-test/roadmap-generator", {
+      const response = await fetch(`${import.meta.env.VITE_WEBHOOK_URL}roadmap-generator`, {
         method: "POST",
         body: formData,
         // Content-Type is set automatically for FormData
@@ -109,51 +112,40 @@ const AdminPage = () => {
     }
 
     setConfirming(true);
-    console.log("[Webhook] Attempting to confirm roadmap...");
+    console.log("[DB Action] Attempting to store roadmap...");
 
     try {
-      let roadmapData;
+      let rawData;
       try {
-        roadmapData = JSON.parse(generatedOutput);
+        rawData = JSON.parse(generatedOutput);
       } catch (e) {
-        roadmapData = generatedOutput;
+        toast.error("Invalid roadmap format. Please regenerate.");
+        return;
       }
 
-      console.log("[Webhook] Payload:", {
-        roadmap: roadmapData,
-        confirmedBy: user?.email,
-        timestamp: new Date().toISOString()
-      });
+      // Handle both { data: { week_number, ... } } and direct format
+      const roadmapObj = (rawData && rawData.data && rawData.data.roadmap) ? rawData.data : rawData;
 
-      const response = await fetch("https://pooja29.app.n8n.cloud/webhook-test/confirmRoadmap", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          roadmap: roadmapData,
-          confirmedBy: user?.email,
-          timestamp: new Date().toISOString()
-        }),
-      });
-
-      const responseText = await response.text();
-      console.log("[Webhook] Response status:", response.status);
-      console.log("[Webhook] Response text:", responseText);
-
-      if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}: ${responseText || "No error detail provided"}`);
+      if (!roadmapObj.week_number) {
+          throw new Error("Invalid roadmap data: week_number is missing.");
       }
 
-      toast.success("Roadmap confirmed and saved to database!");
+      const result = await confirmRoadmapAction({
+        week_number: Number(roadmapObj.week_number),
+        week_topic: roadmapObj.week_topic || "Generated Topic",
+        roadmap: roadmapObj.roadmap || roadmapObj,
+      });
+
+      if (result.status === "success") {
+        toast.success(result.message);
+        setIsConfirmed(true);
+      } else {
+        throw new Error(result.message);
+      }
     } catch (err) {
-      console.error("[Webhook] Confirmation error:", err);
+      console.error("[DB Action] Storage error:", err);
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
-      toast.error(`Confirmation failed: ${errorMessage}`);
-
-      if (errorMessage.includes("Failed to fetch")) {
-        toast.info("Tip: This might be a CORS error. Ensure your n8n webhook allows requests from this origin.");
-      }
+      toast.error(`Storage failed: ${errorMessage}`);
     } finally {
       setConfirming(false);
     }
@@ -343,8 +335,8 @@ const AdminPage = () => {
                             </div>
 
                             {/* Day List */}
-                            <div className="grid gap-6">
-                            {rd.roadmap.map((dayItem: { day: string; topics: { title: string; subtopics: string[] }[] }, idx: number) => (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              {rd.roadmap.map((dayItem: { day: string; topics: { title: string; subtopics: string[] }[] }, idx: number) => (
                                 <div key={idx} className="bg-card border border-border p-6 rounded-2xl shadow-md hover:shadow-lg transition-all duration-300 border-t-4 border-t-primary/20">
                                   <div className="flex items-center justify-between mb-5">
                                     <div className="flex items-center gap-3">
@@ -358,7 +350,7 @@ const AdminPage = () => {
                                     </div>
                                   </div>
 
-                                  <div className="grid sm:grid-cols-2 gap-4">
+                                  <div className="grid gap-4">
                                     {(dayItem.topics || []).map((topic: { title: string; subtopics: string[] }, tIdx: number) => (
                                       <div key={tIdx} className="bg-muted/30 p-4 rounded-xl border border-border/50 hover:border-primary/30 transition-colors group">
                                         <h6 className="text-sm font-black text-foreground mb-3 flex items-center gap-2">
@@ -417,23 +409,25 @@ const AdminPage = () => {
 
                 {/* Confirm Button Overlay */}
                 <div className="absolute bottom-6 right-8 z-10">
-                  <Button
-                    onClick={handleConfirm}
-                    disabled={confirming}
-                    className="gradient-secondary text-primary-foreground shadow-2xl px-10 h-14 rounded-full font-black text-lg transition-transform hover:scale-105 active:scale-95 flex items-center gap-2"
-                  >
-                    {confirming ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Saving to DB...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-5 h-5" />
-                        Confirm Roadmap
-                      </>
-                    )}
-                  </Button>
+                  {!isConfirmed && (
+                    <Button
+                      onClick={handleConfirm}
+                      disabled={confirming}
+                      className="gradient-secondary text-primary-foreground shadow-2xl px-10 h-14 rounded-full font-black text-lg transition-transform hover:scale-105 active:scale-95 flex items-center gap-2"
+                    >
+                      {confirming ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Saving to DB...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-5 h-5" />
+                          Confirm Roadmap
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
 
                 {/* Visual fade effect at the bottom */}

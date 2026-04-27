@@ -1,0 +1,29 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model RoadmapData {
+  id          Int      @id @default(autoincrement())
+  week_number Int
+  week_topic  String
+  roadmap     Json
+  createdAt   DateTime @default(now())
+
+  @@map("roadmap_data")
+}
+
+model LearnerScore {
+  week      Int
+  day       Int
+  score     Int?     @default(0)
+  nextLevel Boolean?
+
+  @@id([week, day])
+  @@map("learner_scores")
+}

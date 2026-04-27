@@ -56,8 +56,9 @@ const InlineChatbot = ({ dayTitle }: InlineChatbotProps) => {
 
     try {
       console.log(`[Inline Chat] Calling AI with Input: "${currentInput}"`);
-      const response = await fetch("https://pooja33.app.n8n.cloud/webhook/68f69153-e7a0-4e90-ab01-1e2b22e26388/chat", {
+      const response = await fetch("https://pooja37.app.n8n.cloud/webhook/68f69153-e7a0-4e90-ab01-1e2b22e26388/chat", {
         method: "POST",
+        
         headers: {
           "Content-Type": "application/json",
         },

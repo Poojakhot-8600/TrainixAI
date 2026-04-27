@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import InlineChatbot from "@/components/InlineChatbot";
 import ReactMarkdown from "react-markdown";
+import { getRoadmapAction, submitQuizAction } from "@/lib/roadmap-actions";
 
 // --- Progress Store (sessionStorage-backed for demo as requested) ---
 function loadProgress(): Record<string, boolean> {
@@ -64,7 +65,8 @@ const TrainingPage = () => {
     const cleanText = text
       .replace(/#{1,6}\s?/g, "") // Remove hashtag headers
       .replace(/\*\*/g, "")      // Remove existing bolds
-      .replace(/^\s*[-*+]\s+/gm, "") // Remove existing bullet markers
+      .replace(/^\s*[-*+•]\s+/gm, "") // Remove existing bullet markers (including dots)
+      .replace(/•\s*/g, "\n")      // Convert dots to newlines to force separate points
       .replace(/---/g, "")       // Remove horizontal rules
       .trim();
 
@@ -72,48 +74,59 @@ const TrainingPage = () => {
     const sections = cleanText.split(/\n\n+/);
     const result: string[] = [];
 
-    sections.forEach(section => {
-      const lines = section.split("\n");
-      if (lines.length === 0) return;
+      sections.forEach(section => {
+        const lines = section.split("\n");
+        if (lines.length === 0) return;
 
-      // The first line often acts as a heading or main topic
-      const title = lines[0].trim();
-      const body = lines.slice(1).join(" ").trim();
+        // Smart Title Detection:
+        // A title should be relatively short and not contain a descriptive sentence.
+        const firstLine = lines[0].trim();
+        const colonIndexInFirst = firstLine.indexOf(":");
+        
+        let title = "";
+        let body = "";
 
-      if (!title) return;
-
-      // Format as a bold Section Heading
-      result.push(`\n**${title}**\n`);
-
-      if (!body) return;
-
-      // 3. Convert all paragraphs into bullet points
-      // Split body into short sentences
-      const sentences = body.split(/(?<=[.!?])\s+(?=[A-Z0-9])/);
-
-      sentences.forEach((sentence, idx) => {
-        const cleanSentence = sentence.trim();
-        if (!cleanSentence) return;
-
-        // Final polish of the sentence text
-        // - Bold text before colons if present (list headings)
-        const colonIndex = cleanSentence.indexOf(":");
-        let finalSentence = cleanSentence;
-
-        if (colonIndex > 0 && colonIndex < 60 && (cleanSentence[colonIndex + 1] === " " || colonIndex === cleanSentence.length - 1)) {
-          const subTitle = cleanSentence.substring(0, colonIndex + 1);
-          const subRest = cleanSentence.substring(colonIndex + 1);
-          finalSentence = `**${subTitle}**${subRest}`;
-        }
-
-        // Apply indentation for hierarchy
-        if (idx === 0) {
-          result.push(`- ${finalSentence}`);
+        if (firstLine.length < 50 && (colonIndexInFirst === -1 || colonIndexInFirst > firstLine.length - 5)) {
+          title = firstLine;
+          body = lines.slice(1).join("\n").trim();
         } else {
-          result.push(`  - ${finalSentence}`);
+          // If first line is long or has a colon early on, it's probably a list item, not a section title
+          body = lines.join("\n").trim();
         }
+
+        if (title) {
+          result.push(`\n**${title}**\n`);
+        }
+
+        if (!body) return;
+
+        // 3. Convert all paragraphs into bullet points
+        const sentences = body.split(/(?<=[.!?])\s+(?=[A-Z0-9])|\n+/);
+
+        sentences.forEach((sentence, idx) => {
+          const cleanSentence = sentence.trim();
+          if (!cleanSentence) return;
+
+          // Final polish: Bold only the list heading (text before colon)
+          const colonIdx = cleanSentence.indexOf(":");
+          let finalSentence = cleanSentence;
+
+          if (colonIdx > 0 && colonIdx < 60) {
+            const subTitle = cleanSentence.substring(0, colonIdx + 1);
+            const subRest = cleanSentence.substring(colonIdx + 1);
+            finalSentence = `**${subTitle}**${subRest}`;
+          }
+
+          // Apply indentation for hierarchy
+          if (idx === 0 && title) {
+            result.push(`- ${finalSentence}`);
+          } else if (title) {
+            result.push(`  - ${finalSentence}`);
+          } else {
+            result.push(`- ${finalSentence}`);
+          }
+        });
       });
-    });
 
     return result.join("\n").trim();
   };
@@ -145,90 +158,84 @@ const TrainingPage = () => {
         setLoading(true);
         setError(null);
 
-        // Check sessionStorage first
-        const cachedRoadmap = sessionStorage.getItem("trainix-roadmap");
-        let responseData = cachedRoadmap ? JSON.parse(cachedRoadmap) : null;
+        // Fetch from database on every mount/redirect
+        const result = await getRoadmapAction();
 
-        // If not cached, fetch from webhook
-        if (!responseData) {
-          const response = await fetch("https://pooja35.app.n8n.cloud/webhook-test/getRoadmap", {
-            method: "GET",
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          responseData = await response.json();
-
-          // Store in sessionStorage for future use
-          sessionStorage.setItem("trainix-roadmap", JSON.stringify(responseData));
+        if (result.status === "error") {
+          throw new Error(result.message);
         }
+
+        if (!result.data) {
+          throw new Error("No roadmap available. Please generate one in Admin Panel.");
+        }
+
+        const responseData = result.data;
+
+        // Update sessionStorage for other components that might read it
+        sessionStorage.setItem("trainix-roadmap", JSON.stringify(responseData));
 
         console.log("Roadmap response:", responseData);
 
         // Transform webhook data to TrainingTopic format
         let topics: TrainingTopic[] = [];
 
-        if (responseData.data && responseData.data.week_number !== undefined && responseData.data.roadmap) {
-          // New format from webhook: {status, data: {week_number, week_topic, roadmap}}
-          const weekData = responseData.data as Record<string, unknown>;
+        if (Array.isArray(responseData) && responseData.length > 0) {
+          // Build weeks from multiple DB rows
+          const allWeeks = (responseData as Record<string, unknown>[]).map((weekData, weekIdx) => {
+            const days: DayContent[] = (weekData.roadmap as Record<string, unknown>[]).map((dayItem, dayIdx) => {
+              const topics = dayItem.topics as Record<string, unknown>[] || [];
 
-          const days: DayContent[] = (weekData.roadmap as Array<Record<string, unknown>>).map((dayItem, idx) => {
-            const topics = dayItem.topics as Array<Record<string, unknown>> || [];
+              const readingContent = topics
+                .map((t) => {
+                  let content = `**${t.title || ""}**\n`;
+                  if (t.subtopics && Array.isArray(t.subtopics)) {
+                    content += (t.subtopics as string[]).map((st) => `- ${st}`).join("\n");
+                  }
+                  return content;
+                })
+                .join("\n\n");
 
-            // Build reading content from topics and subtopics
-            const readingContent = topics
-              .map((topic) => {
-                let content = `**${topic.title || ""}**\n`;
-                if (topic.subtopics && Array.isArray(topic.subtopics)) {
-                  content += (topic.subtopics as string[]).map((st) => `- ${st}`).join("\n");
-                }
-                return content;
-              })
-              .join("\n\n");
+              const dayTitle = topics.length > 0
+                ? (topics[0].title as string)
+                : (dayItem.day as string || `Day ${dayIdx + 1}`).replace(/Day\s*/i, "").trim();
 
-            // Extract day title: use first topic title if available, otherwise use topic count
-            const dayTitle = topics.length > 0
-              ? (topics[0].title as string)
-              : (dayItem.day as string || `Day ${idx + 1}`).replace(/Day\s*/i, "").trim();
+              return {
+                day: dayIdx + 1,
+                title: dayTitle,
+                readingContent,
+                status: ((weekIdx === 0 && dayIdx === 0) ? "in-progress" : "locked") as "completed" | "in-progress" | "locked",
+                quiz: [
+                  {
+                    id: `q-w${weekData.week_number as number}-d${dayIdx + 1}`,
+                    question: `What is the main topic of ${dayTitle}?`,
+                    options: ["Option A", "Option B", "Option C", "Option D"],
+                    correctAnswer: 0,
+                    type: "mcq" as const,
+                  },
+                ],
+              };
+            });
 
             return {
-              day: idx + 1,
-              title: dayTitle,
-              readingContent,
-              status: idx === 0 ? "in-progress" : "locked",
-              quiz: [
-                {
-                  id: `q${idx}-1`,
-                  question: `What is the main topic of Day ${idx + 1}?`,
-                  options: ["Option A", "Option B", "Option C", "Option D"],
-                  correctAnswer: 0,
-                  type: "mcq" as const,
-                },
-              ],
+              week: weekData.week_number as number,
+              title: weekData.week_topic as string,
+              description: `Detailed training for ${weekData.week_topic as string}`,
+              status: (weekIdx === 0 ? "in-progress" : "locked") as "in-progress" | "locked" | "completed",
+              days,
             };
           });
 
           const topic: TrainingTopic = {
-            id: "week-1-oops",
-            title: "Week 1: OOPS",
-            description: `Week 1: OOPS`,
+            id: "company-training-roadmap",
+            title: "Technical Training Roadmap",
+            description: "Your structured path to technical mastery",
             icon: "BookOpen",
             color: "primary",
-            weeks: [
-              {
-                week: 1,
-                title: "OOPS",
-                description: `Learn about OOPS`,
-                status: "in-progress",
-                days,
-              },
-            ],
+            weeks: allWeeks,
           };
           topics = [topic];
-        } else if (Array.isArray(responseData.data)) {
-          // Array format
+        } else if (responseData.data && Array.isArray(responseData.data)) {
+          // Fallback for old array format
           topics = responseData.data;
         } else if (Array.isArray(responseData)) {
           // Direct array
@@ -253,9 +260,9 @@ const TrainingPage = () => {
     fetchRoadmap();
   }, []);
 
-  const fetchDayData = useCallback(async (day: DayContent) => {
+  const fetchDayData = useCallback(async (day: DayContent, weekNum: number) => {
     const dayNum = day.day;
-    const cacheKey = `trainix-day${dayNum}`;
+    const cacheKey = `trainix-day-content-w${weekNum}-d${dayNum}`;
 
     // Check sessionStorage first to see if we already have this content
     const cached = sessionStorage.getItem(cacheKey);
@@ -284,10 +291,14 @@ const TrainingPage = () => {
       const roadmapData = sessionStorage.getItem("trainix-roadmap");
       if (roadmapData) {
         try {
-          const roadmap = JSON.parse(roadmapData);
-          if (roadmap.data && Array.isArray(roadmap.data.roadmap)) {
+          const roadmaps = JSON.parse(roadmapData);
+          // Find the correct week
+          const allWeeks = Array.isArray(roadmaps) ? roadmaps : ((roadmaps as Record<string, unknown>).data as Record<string, unknown>[] || []);
+          const weekData = allWeeks.find((w: Record<string, unknown>) => w.week_number === weekNum);
+
+          if (weekData && Array.isArray(weekData.roadmap)) {
             // Find the day in the roadmap (dayNum is 1-indexed)
-            const dayData = roadmap.data.roadmap[dayNum - 1];
+            const dayData = weekData.roadmap[dayNum - 1];
             if (dayData && Array.isArray(dayData.topics) && dayData.topics.length > 0) {
               // Get first topic as the primary topic
               const firstTopic = dayData.topics[0] as Record<string, unknown>;
@@ -311,21 +322,22 @@ const TrainingPage = () => {
         subtopic: subtopic,
         subtopics: subtopicsArray,
         day: dayNum,
+        week: weekNum,
         day_title: day.title,
         timestamp: new Date().toISOString()
       };
 
-      console.log(`[Webhook] Sending POST to https://pooja35.app.n8n.cloud/webhook-test/day1 with body:`, requestBody);
+      console.log(`[Webhook] Sending POST to ${import.meta.env.VITE_WEBHOOK_URL}day1 with body:`, requestBody);
 
-      // Fetch from webhook - URL is hardcoded as requested
-      const response = await fetch("https://pooja35.app.n8n.cloud/webhook-test/day1", {
+      // Fetch from webhook - URL is using environment variable
+      const response = await fetch(`${import.meta.env.VITE_WEBHOOK_URL}day1`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(requestBody),
       });
-      console.log(response)
+      console.log("response day1", response)
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -396,6 +408,9 @@ const TrainingPage = () => {
           .replace(/Together these pieces from the provided material present a coherent, document-sourced explanation of OOP:/gi, "")
           .replace(/The retrieved text emphasizes practical outcomes such as/gi, "")
           .replace(/The document frames the idea of /gi, "")
+          .replace(/•\s*/g, "\n- ") // Convert dots to list items
+          .replace(/\s*•\s*/g, "\n- ") // Handle spaces around dots
+          .replace(/- ([A-Z][a-z]+:)/g, "- **$1**") // Bold subtopic labels like "State:"
           .trim();
 
         const formattedContent = structurizeContent(cleanedReadingContent);
@@ -479,7 +494,7 @@ const TrainingPage = () => {
     setLoadingDay(true);
     try {
       console.log(`[Quiz Webhook] Fetching quiz for: ${selectedDay.title}`);
-      const response = await fetch("https://pooja35.app.n8n.cloud/webhook-test/quiz", {
+      const response = await fetch(`${import.meta.env.VITE_WEBHOOK_URL}quiz`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -637,23 +652,15 @@ const TrainingPage = () => {
       const userAnswers = shuffledQuiz.map(q => quizAnswers[q.id] ?? -1);
       const correctAnswers = shuffledQuiz.map(q => q.correctAnswer);
 
-      console.log(`[Quiz Submit] Sending assessment for Day ${dayNum}...`);
-      const response = await fetch("https://pooja35.app.n8n.cloud/webhook-test/quiz-submit", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userAnswers,
-          correctAnswers,
-          week: weekNum,
-          day: dayNum
-        }),
+      console.log(`[Quiz Submit] Evaluating quiz for Day ${dayNum} via Server Action...`);
+      const result = await submitQuizAction({
+        userAnswers,
+        correctAnswers,
+        week: weekNum,
+        day: dayNum
       });
 
-      if (!response.ok) throw new Error("Failed to evaluate quiz");
-
-      const result = await response.json();
+      if (result.status === "error") throw new Error(result.message);
       console.log("[Quiz Result] Received:", result);
 
       setQuizSubmitted(true);
@@ -1055,7 +1062,7 @@ const TrainingPage = () => {
             <span className="text-sm font-medium text-foreground">{progress.done}/{progress.total} days</span>
           </div>
 
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {week.days.map((day, di) => {
               const completed = isDayCompleted(selectedWeek.topicId, week.week, day.day);
               const unlocked = isDayUnlocked(selectedWeek.topicId, week.week, day.day, weekIndex);
@@ -1069,7 +1076,7 @@ const TrainingPage = () => {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: di * 0.05 }}
-                        onClick={() => unlocked ? fetchDayData(day) : null}
+                        onClick={() => unlocked ? fetchDayData(day, week.week) : null}
                         disabled={!unlocked}
                         className={`w-full flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl border transition-all text-left
                           ${completed
