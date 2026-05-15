@@ -346,6 +346,7 @@ const AdminPage = () => {
                       }
 
                       // Fallback to text rendering
+                      //jfgjfj rty
                       return (
                         <div className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line bg-muted/20 p-6 rounded-xl border border-border">
                           {generatedOutput.split("\n").map((line, i) => {
