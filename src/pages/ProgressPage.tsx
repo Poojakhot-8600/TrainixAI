@@ -1,13 +1,57 @@
 import { motion } from "framer-motion";
-import { trainingTopics } from "@/data/trainingData";
+import { useState, useEffect } from "react";
+import { getRoadmapAction } from "@/lib/roadmap-actions";
+import { trainingTopics, type TrainingTopic } from "@/data/trainingData";
 import { Trophy, Target, Flame, BookOpen } from "lucide-react";
 
 const ProgressPage = () => {
-  const totalModules = trainingTopics.reduce((s, t) => s + t.weeks.length, 0);
-  const completed = trainingTopics.reduce(
-    (s, t) => s + t.weeks.filter((w) => w.status === "completed").length, 0
+  const [dynamicTopics, setDynamicTopics] = useState<TrainingTopic[]>([]);
+  const displayTopics = dynamicTopics.length > 0 ? dynamicTopics : trainingTopics;
+
+  useEffect(() => {
+    const fetchRoadmap = async () => {
+      try {
+        const result = await getRoadmapAction();
+        if (result.status === "success" && result.data) {
+          const allWeeks = result.data.map((weekData, weekIdx) => ({
+            week: weekData.week_number as number,
+            title: weekData.week_topic as string,
+            description: `Detailed training for ${weekData.week_topic as string}`,
+            status: (weekIdx === 0 ? "in-progress" : "locked") as "in-progress" | "locked" | "completed",
+            days: (weekData.roadmap as Record<string, unknown>[]).map((dayItem, dayIdx) => ({
+              day: dayIdx + 1,
+              title: (dayItem.topics as Record<string, unknown>[])[0]?.title as string || `Day ${dayIdx + 1}`,
+              status: ((weekIdx === 0 && dayIdx === 0) ? "in-progress" : "locked") as "completed" | "in-progress" | "locked",
+              readingContent: "",
+              quiz: [],
+            })),
+          }));
+
+          setDynamicTopics([
+            {
+              id: "company-training-roadmap",
+              title: "Technical Training Roadmap",
+              description: "Your structured path to technical mastery",
+              icon: "BookOpen",
+              color: "primary",
+              weeks: allWeeks,
+            },
+          ]);
+        }
+      } catch (error) {
+        console.error("Error fetching roadmap for progress page:", error);
+      }
+    };
+
+    fetchRoadmap();
+  }, []);
+
+  const totalModules = displayTopics.reduce((s, t) => s + t.weeks.length, 0);
+  const completed = displayTopics.reduce(
+    (s, t) => s + t.weeks.filter((w) => w.status === "completed").length,
+    0
   );
-  const percent = Math.round((completed / totalModules) * 100);
+  const percent = totalModules > 0 ? Math.round((completed / totalModules) * 100) : 0;
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
@@ -44,7 +88,7 @@ const ProgressPage = () => {
 
       {/* Per-topic progress */}
       <div className="space-y-4">
-        {trainingTopics.map((topic, i) => {
+        {displayTopics.map((topic, i) => {
           const tc = topic.weeks.filter((w) => w.status === "completed").length;
           const tp = Math.round((tc / topic.weeks.length) * 100);
           return (

@@ -7,6 +7,9 @@ import {
   Building2, Code2, Users, ChevronRight, CheckCircle2, Circle, Lock
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { getRoadmapAction } from "@/lib/roadmap-actions";
+import { TrainingTopic } from "@/data/trainingData";
 
 const iconMap: Record<string, React.ElementType> = { Building2, Code2, Users };
 const colorMap = {
@@ -18,12 +21,70 @@ const colorMap = {
 const DashboardPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [dynamicTopics, setDynamicTopics] = useState<TrainingTopic[]>([]);
+  const [loadingTopics, setLoadingTopics] = useState(true);
 
-  const totalModules = trainingTopics.reduce((s, t) => s + t.weeks.length, 0);
-  const completedModules = trainingTopics.reduce(
+  // Use dynamic topics if available, otherwise fall back to static
+  const displayTopics = dynamicTopics.length > 0 ? dynamicTopics : trainingTopics;
+
+  useEffect(() => {
+    const fetchRoadmap = async () => {
+      try {
+        setLoadingTopics(true);
+        const result = await getRoadmapAction();
+
+        if (result.status === "success" && result.data) {
+          // Transform DB data to TrainingTopic format (similar to TrainingPage)
+          let topics: TrainingTopic[] = [];
+
+          if (Array.isArray(result.data) && result.data.length > 0) {
+            const allWeeks = result.data.map((weekData, weekIdx) => {
+              const days = (weekData.roadmap as Record<string, unknown>[]).map((dayItem, dayIdx) => ({
+                day: dayIdx + 1,
+                title: (dayItem.topics as Record<string, unknown>[])[0]?.title as string || `Day ${dayIdx + 1}`,
+                status: ((weekIdx === 0 && dayIdx === 0) ? "in-progress" : "locked") as "completed" | "in-progress" | "locked",
+                readingContent: "",
+                quiz: [],
+              }));
+
+              return {
+                week: weekData.week_number as number,
+                title: weekData.week_topic as string,
+                description: `Detailed training for ${weekData.week_topic as string}`,
+                status: (weekIdx === 0 ? "in-progress" : "locked") as "in-progress" | "locked" | "completed",
+                days,
+              };
+            });
+
+            const topic: TrainingTopic = {
+              id: "company-training-roadmap",
+              title: "Technical Training Roadmap",
+              description: "Your structured path to technical mastery",
+              icon: "BookOpen",
+              color: "primary",
+              weeks: allWeeks,
+            };
+            topics = [topic];
+          }
+
+          setDynamicTopics(topics);
+        }
+      } catch (error) {
+        console.error("Error fetching roadmap for dashboard:", error);
+        // Fall back to static topics
+      } finally {
+        setLoadingTopics(false);
+      }
+    };
+
+    fetchRoadmap();
+  }, []);
+
+  const totalModules = displayTopics.reduce((s, t) => s + t.weeks.length, 0);
+  const completedModules = displayTopics.reduce(
     (s, t) => s + t.weeks.filter((w) => w.status === "completed").length, 0
   );
-  const inProgress = trainingTopics.reduce(
+  const inProgress = displayTopics.reduce(
     (s, t) => s + t.weeks.filter((w) => w.status === "in-progress").length, 0
   );
   const progressPercent = Math.round((completedModules / totalModules) * 100);
@@ -107,7 +168,7 @@ const DashboardPage = () => {
       {/* Training Topics */}
       <h2 className="text-xl font-bold font-display text-foreground mb-4">Training Tracks</h2>
       <div className="grid md:grid-cols-3 gap-4 mb-8">
-        {trainingTopics.map((topic, i) => {
+        {displayTopics.map((topic, i) => {
           const Icon = iconMap[topic.icon] || BookOpen;
           const completed = topic.weeks.filter((w) => w.status === "completed").length;
           return (
@@ -143,7 +204,7 @@ const DashboardPage = () => {
       {/* Current Week Modules */}
       <h2 className="text-xl font-bold font-display text-foreground mb-4">This Week's Modules</h2>
       <div className="space-y-3">
-        {trainingTopics.flatMap((topic) =>
+        {displayTopics.flatMap((topic) =>
           topic.weeks
             .filter((w) => w.status === "in-progress")
             .map((week) => (
@@ -159,7 +220,7 @@ const DashboardPage = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-foreground">{week.title}</p>
-                  <p className="text-sm text-muted-foreground">{topic.title} · Week {week.week} · {<p className="text-sm text-muted-foreground">{topic.title} · Week {week.week}</p>}</p>
+                  <p className="text-sm text-muted-foreground">{topic.title} · Week {week.week}</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
               </motion.div>
